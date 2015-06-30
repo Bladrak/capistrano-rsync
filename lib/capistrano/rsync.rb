@@ -129,7 +129,7 @@ namespace :rsync do
           pull << "--depth=#{fetch(:rsync_depth)}"
         end
         pull << "origin"
-        pull << rsync_target.call
+        pull << fetch(:branch)
         Kernel.system *pull
       end
     else
