@@ -46,16 +46,17 @@ Rake::Task["deploy:check"].enhance ["rsync:hook_scm"]
 
 desc "Stage and rsync to the server (or its cache)."
 task :rsync => %w[rsync:stage_done] do
-  on release_roles(:all) do |role|
-    user = role.user + "@" if !role.user.nil?
+  run_locally do
+    release_roles(:all).each do |role|
+      user = role.user + "@" if !role.user.nil?
 
-    rsync = %w[rsync]
-    rsync.concat fetch(:rsync_options)
-    rsync << File.join(fetch(:rsync_stage), File.join(fetch(:rsync_target_dir), ""))
-    rsync << "#{user}#{role.hostname}:#{rsync_cache.call || release_path}"
+      rsync = %w[rsync]
+      rsync.concat fetch(:rsync_options)
+      rsync << File.join(fetch(:rsync_stage), File.join(fetch(:rsync_target_dir), ""))
+      rsync << "#{user}#{role.hostname}:#{rsync_cache.call || release_path}"
 
-    puts *rsync
-    Kernel.system *rsync
+      execute rsync.join(" ")
+    end
   end
 end
 
@@ -101,53 +102,57 @@ namespace :rsync do
     next if !has_roles?
 
     if fetch(:rsync_sparse_checkout, []).any?
-      init = %W[git init --quiet]
-      init << fetch(:rsync_stage)
+      run_locally do
+        init = %W[git init --quiet]
+        init << fetch(:rsync_stage)
 
-      Kernel.system *init
+        execute init.join(" ")
 
-      Dir.chdir fetch(:rsync_stage) do
-        remote = %W[git remote add origin]
-        remote << fetch(:repo_url)
-        Kernel.system *remote
+        Dir.chdir fetch(:rsync_stage) do
+          remote = %W[git remote add origin]
+          remote << fetch(:repo_url)
+          execute remote.join(" ")
 
-        fetch = %W[git fetch --quiet --prune --all -t]
-        if !!fetch(:rsync_depth, false)
-          fetch << "--depth=#{fetch(:rsync_depth)}"
-        end
-        Kernel.system *fetch
-
-        sparse = %W[git config core.sparsecheckout true]
-        Kernel.system *sparse
-
-        sparse_dir = %W[mkdir .git/info]
-        Kernel.system *sparse_dir
-
-        open('.git/info/sparse-checkout', 'a') { |f|
-          fetch(:rsync_sparse_checkout).each do |sparse_dir|
-            f.puts sparse_dir
+          fetch = %W[git fetch --quiet --prune --all -t]
+          if !!fetch(:rsync_depth, false)
+            fetch << "--depth=#{fetch(:rsync_depth)}"
           end
-        }
+          execute fetch.join(" ")
 
-        pull = %W[git pull --quiet]
-        if !!fetch(:rsync_depth, false)
-          pull << "--depth=#{fetch(:rsync_depth)}"
+          sparse = %W[git config core.sparsecheckout true]
+          execute sparse.join(" ")
+
+          sparse_dir = %W[mkdir .git/info]
+          execute sparse_dir.join(" ")
+
+          open('.git/info/sparse-checkout', 'a') { |f|
+            fetch(:rsync_sparse_checkout).each do |sparse_dir|
+              f.puts sparse_dir
+            end
+          }
+
+          pull = %W[git pull --quiet]
+          if !!fetch(:rsync_depth, false)
+            pull << "--depth=#{fetch(:rsync_depth)}"
+          end
+          pull << "origin"
+          pull << rsync_target.call
+          execute pull.join(" ")
         end
-        pull << "origin"
-        pull << rsync_branch.call
-        Kernel.system *pull
       end
     else
-      clone = %W[git clone --quiet]
-      clone << fetch(:repo_url, ".")
-      clone << fetch(:rsync_stage)
-      if !!fetch(:rsync_depth, false)
-        clone << "--depth=#{fetch(:rsync_depth)}"
+      run_locally do
+        clone = %W[git clone --quiet]
+        clone << fetch(:repo_url, ".")
+        clone << fetch(:rsync_stage)
+        if !!fetch(:rsync_depth, false)
+          clone << "--depth=#{fetch(:rsync_depth)}"
+        end
+        if fetch(:enable_git_submodules)
+          clone << "--recursive"
+        end
+        execute clone.join(" ")
       end
-      if fetch(:enable_git_submodules)
-        clone << "--recursive"
-      end
-      Kernel.system *clone
     end
   end
 
@@ -155,20 +160,22 @@ namespace :rsync do
   task :stage => %w[create_stage] do
     next if !has_roles?
 
-    Dir.chdir fetch(:rsync_stage) do
-      update = %W[git fetch --quiet --all --prune]
-      if !!fetch(:rsync_depth, false)
-        update << "--depth=#{fetch(:rsync_depth)}"
-      end
-      Kernel.system *update
+    run_locally do
+      Dir.chdir fetch(:rsync_stage) do
+        update = %W[git fetch --quiet --all --prune]
+        if !!fetch(:rsync_depth, false)
+          update << "--depth=#{fetch(:rsync_depth)}"
+        end
+        execute update.join(" ")
 
-      if fetch(:enable_git_submodules)
-        submodules = %W[git submodule update]
-        Kernel.system *submodules
-      end
+        if fetch(:enable_git_submodules)
+          submodules = %W[git submodule update]
+          execute submodules.join(" ")
+        end
 
-      checkout = %W[git reset --quiet --hard #{rsync_target.call}]
-      Kernel.system *checkout
+        checkout = %W[git reset --quiet --hard #{rsync_target.call}]
+        execute checkout.join(" ")
+      end
     end
   end
 
