@@ -1,6 +1,8 @@
 Capistrano::Rsync for Capistrano v3
 ===================================
 
+[![Join the chat at https://gitter.im/Bladrak/capistrano-rsync](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/Bladrak/capistrano-rsync?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This repository is a fork of https://github.com/moll/capistrano-rsync which doesn't seem to be maintained anymore.
 
 It has all the capabilities of the original repo, and some other features. Moreover, I will try to maintain it.  
